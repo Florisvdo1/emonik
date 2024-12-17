@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="en" style="margin:0;padding:0;">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
+<title>Emoji Planner</title>
+<style>
+html,body { margin:0;padding:0;width:100%;height:100%;overflow:hidden;font-family:sans-serif;background:#90caf9;display:flex;flex-direction:column; }
+#app { position:relative;width:100%;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:flex-start; }
+.header { width:100%;display:flex;align-items:center;justify-content:space-between;padding:0.5rem;box-sizing:border-box;background:#90caf9; }
+.navButtons { display:flex;align-items:center;gap:0.5rem; }
+.arrowBtn { background:#4caf50;color:#ffffff;border:none;padding:0.5rem;cursor:pointer;font-size:1rem;user-select:none; }
+.arrowBtn:active { animation:bounce 0.2s; }
+@keyframes bounce {0%{transform:scale(1);}50%{transform:scale(0.9);}100%{transform:scale(1);}}
+.searchInput { width:150px;height:2rem;box-sizing:border-box; }
+.resetBtn { background:#4caf50;color:#ffffff;border:none;padding:0.5rem;cursor:pointer;font-size:1rem;user-select:none; }
+.resetBtn:active { animation:bounce 0.2s; }
+#add-placeholder { background:#4caf50;color:#ffffff;border:none;padding:0.5rem;cursor:pointer;font-size:1rem;user-select:none;margin-left:0.5rem; }
+#add-placeholder:active { animation:bounce 0.2s; }
+.timeDisplay { color:#ffffff;font-weight:bold; }
+.content { flex:1;width:100%;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;box-sizing:border-box;overflow:hidden;position:relative;padding:0.5rem; }
+.emoji-grid { display:grid;grid-template-columns:repeat(auto-fit, minmax(40px,1fr));grid-auto-rows:40px;gap:5px;justify-items:center;align-items:center;width:100%;max-width:400px;overflow:hidden; }
+.emojiItem { width:100%;height:100%;display:flex;align-items:center;justify-content:center;background:#89cfff;border-radius:5px;user-select:none;font-size:1.5rem;cursor:grab; touch-action:none; }
+.emojiItem:active { cursor:grabbing; }
+#placeholders { display:flex;flex-wrap:wrap;gap:5px;margin-top:0.5rem;justify-content:center; }
+.placeholder { width:50px;height:50px;background:#89cfff;border-radius:5px;display:flex;align-items:center;justify-content:center;user-select:none;position:relative; }
+.placeholder:hover { transform:scale(1.1);transition:transform 0.1s; }
+#tutorialOverlay { position:absolute;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.7);color:#ffffff;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:1rem;box-sizing:border-box;z-index:999; }
+.tutorialStep { margin-bottom:1rem;text-align:center; }
+.tutorialButton { background:#4caf50;color:#ffffff;padding:0.5rem;cursor:pointer;border:none;font-size:1rem;user-select:none; }
+.tutorialButton:active { animation:bounce 0.2s; }
+.cloudsContainer { position:absolute;top:0;left:0;width:200%;height:200%;pointer-events:none;z-index:-1;opacity:0.3; }
+.cloudsContainer div { position:absolute;width:200px;height:100px;background:#ffffff;border-radius:100px; }
+@keyframes moveLeft {0%{transform:translateX(0);}100%{transform:translateX(-100%);}}
+@keyframes moveRight {0%{transform:translateX(-100%);}100%{transform:translateX(0);}}
+.confetti-container { pointer-events:none;position:absolute;top:0;left:0;width:100%;height:100%;overflow:hidden;z-index:998; }
+.confetti { position:absolute;width:5px;height:5px;background:#ff0;animation:fall 3s linear infinite; }
+@keyframes fall {0%{opacity:1;transform:translateY(-10px);}100%{opacity:0;transform:translateY(100vh);} }
+
+</style>
+</head>
+<body>
+<div id="app" aria-label="Emoji Planner App">
+  <div class="cloudsContainer" id="clouds"></div>
+  <div class="header" aria-label="Header">
+    <div class="navButtons">
+      <button class="arrowBtn" id="left-arrow" aria-label="Previous Category">←</button>
+      <button class="arrowBtn" id="right-arrow" aria-label="Next Category">→</button>
+    </div>
+    <input type="text" class="searchInput" id="search-bar" placeholder="Search emojis..." aria-label="Search emojis"/>
+    <button class="resetBtn" id="reset-all" aria-label="Reset All">Reset</button>
+    <button id="add-placeholder" aria-label="Add Placeholder">+</button>
+    <div class="timeDisplay" id="time-display" aria-label="Current Time"></div>
+  </div>
+  <div class="content" aria-label="Main Content">
+    <div id="emoji-deck" class="emoji-grid" aria-label="Emoji Deck"></div>
+    <div id="placeholders" aria-label="Placeholders"></div>
+  </div>
+  <div id="tutorialOverlay" aria-label="Tutorial">
+    <div class="tutorialStep">
+      <img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAAEn36fDAAAABmJLR0QA..."/>
+      <p>Drag and drop emojis into placeholders.</p>
+    </div>
+    <div class="tutorialStep">
+      <img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAAEn36fDAAAABmJLR0QA..."/>
+      <p>Double-tap to delete emojis from placeholders.</p>
+    </div>
+    <div class="tutorialStep">
+      <p>Use left/right arrows to navigate categories, search bar to filter, and reset to clear all.</p>
+    </div>
+    <button class="tutorialButton" id="tutorial-close">Got it!</button>
+  </div>
+  <div class="confetti-container" id="confetti"></div>
+</div>
+<script>
+(function(){
+  const categories = ["events","emotion","travel","art","tech","objects"];
+  // Generate 600 emojis by repeating sets
+  const baseData = {
+    "events":["🎉","🎂","🎆","🎈","🎊","🥳","🎃","🎄","🎅","🎇"],
+    "emotion":["😀","😂","😊","🥰","😍","😎","😢","😡","🤔","😴"],
+    "travel":["✈️","🚗","🚂","🚇","🛳️","🚀","🚁","🚜","🚴","🏝️"],
+    "art":["🎨","🎸","🎻","🎹","🖌️","🥁","🖍️","✏️","🖋️","📷"],
+    "tech":["💻","📱","🎥","🖥️","📡","📶","⌨️","🔋","💾","🔑"],
+    "objects":["📦","🎁","🛍️","🎀","📚","💡","🕯️","📒","🔦","🔨"]
+  };
+  // Make data 600 by repeating each category 10 times (10*10=100 per category * 6=600)
+  const emojiData = {};
+  categories.forEach(cat=>{
+    emojiData[cat]=[];
+    for(let i=0;i<10;i++){
+      emojiData[cat]=emojiData[cat].concat(baseData[cat]);
+    }
+  });
+
+  let currentCategoryIndex=0;
+  let placeholders=[];
+  let emojisInDeck=[];
+  let searchTerm="";
+  let tutorialActive=true;
+
+  const leftArrow=document.getElementById('left-arrow');
+  const rightArrow=document.getElementById('right-arrow');
+  const searchBar=document.getElementById('search-bar');
+  const emojiDeck=document.getElementById('emoji-deck');
+  const placeholdersContainer=document.getElementById('placeholders');
+  const addPlaceholderBtn=document.getElementById('add-placeholder');
+  const resetAllBtn=document.getElementById('reset-all');
+  const tutorialOverlay=document.getElementById('tutorialOverlay');
+  const tutorialClose=document.getElementById('tutorial-close');
+  const timeDisplay=document.getElementById('time-display');
+  const confettiContainer=document.getElementById('confetti');
+
+  function updateTime(){
+    timeDisplay.textContent=new Date().toLocaleTimeString();
+  }
+  setInterval(updateTime,1000);
+  updateTime();
+
+  function loadCategory(index){
+    const cat=categories[index];
+    emojisInDeck=emojiData[cat].map((ch,i)=>({id:`${cat}-${i}`,char:ch}));
+    renderDeck();
+  }
+
+  function renderDeck(){
+    emojiDeck.innerHTML="";
+    const filtered = emojisInDeck.filter(e=>e.char.toLowerCase().includes(searchTerm.toLowerCase()));
+    filtered.forEach(e=>{
+      const div=document.createElement('div');
+      div.className='emojiItem';
+      div.textContent=e.char;
+      div.setAttribute('draggable','true');
+      div.setAttribute('data-id',e.id);
+      div.addEventListener('dragstart',onDragStart);
+      emojiDeck.appendChild(div);
+    });
+  }
+
+  function onDragStart(e){
+    e.dataTransfer.setData('text/plain',e.target.getAttribute('data-id'));
+  }
+
+  function switchCategory(dir){
+    currentCategoryIndex=(currentCategoryIndex+dir+categories.length)%categories.length;
+    searchTerm="";
+    searchBar.value="";
+    loadCategory(currentCategoryIndex);
+    launchConfetti();
+  }
+
+  function launchConfetti(){
+    for(let i=0;i<20;i++){
+      const c=document.createElement('div');
+      c.className='confetti';
+      c.style.left=Math.random()*100+"%";
+      c.style.backgroundColor=`hsl(${Math.random()*360},100%,50%)`;
+      confettiContainer.appendChild(c);
+      setTimeout(()=>{ confettiContainer.removeChild(c); },3000);
+    }
+  }
+
+  function renderPlaceholders(){
+    placeholdersContainer.innerHTML="";
+    placeholders.forEach((p,i)=>{
+      const ph=document.createElement('div');
+      ph.className='placeholder';
+      ph.setAttribute('data-index',i);
+      ph.setAttribute('aria-label','Placeholder');
+      if(p.char){
+        ph.textContent=p.char;
+      }
+      ph.addEventListener('dragover',onPlaceholderDragOver);
+      ph.addEventListener('drop',onPlaceholderDrop);
+      ph.addEventListener('dblclick',onPlaceholderDoubleClick);
+      placeholdersContainer.appendChild(ph);
+    });
+  }
+
+  function onPlaceholderDragOver(e){
+    e.preventDefault();
+  }
+
+  function onPlaceholderDrop(e){
+    e.preventDefault();
+    const id=e.dataTransfer.getData('text/plain');
+    const emoji=emojisInDeck.find(em=>em.id===id);
+    if(emoji){
+      const phIndex=parseInt(e.currentTarget.getAttribute('data-index'));
+      placeholders[phIndex].char=emoji.char;
+      renderPlaceholders();
+    }
+  }
+
+  function onPlaceholderDoubleClick(e){
+    const phIndex=parseInt(e.currentTarget.getAttribute('data-index'));
+    placeholders[phIndex].char=null;
+    renderPlaceholders();
+  }
+
+  function addPlaceholder(){
+    placeholders.push({char:null});
+    renderPlaceholders();
+  }
+
+  function resetAll(){
+    placeholders.forEach(p=>p.char=null);
+    searchTerm="";
+    searchBar.value="";
+    loadCategory(currentCategoryIndex);
+    renderPlaceholders();
+  }
+
+  leftArrow.addEventListener('click',()=>switchCategory(-1));
+  rightArrow.addEventListener('click',()=>switchCategory(1));
+  searchBar.addEventListener('input',(e)=>{
+    searchTerm=e.target.value;
+    renderDeck();
+  });
+  addPlaceholderBtn.addEventListener('click',addPlaceholder);
+  resetAllBtn.addEventListener('click',resetAll);
+
+  tutorialClose.addEventListener('click',()=>{
+    tutorialOverlay.style.display='none';
+    tutorialActive=false;
+  });
+
+  placeholders=[];
+  for(let i=0;i<5;i++){
+    placeholders.push({char:null});
+  }
+
+  loadCategory(currentCategoryIndex);
+  renderPlaceholders();
+
+  function createClouds(){
+    const container=document.getElementById('clouds');
+    for(let i=0;i<10;i++){
+      const c=document.createElement('div');
+      c.style.top=(Math.random()*200)+"px";
+      c.style.left=(Math.random()*200)+"px";
+      c.style.width=(100+Math.random()*100)+"px";
+      c.style.height=(50+Math.random()*50)+"px";
+      c.style.borderRadius="100px";
+      c.style.background="#fff";
+      c.style.opacity=Math.random()*0.8;
+      c.style.animation=(i%2===0)?"moveLeft 20s linear infinite":"moveRight 25s linear infinite";
+      container.appendChild(c);
+    }
+  }
+  createClouds();
+
+})();
+</script>
+</body>
+</html>
